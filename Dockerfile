@@ -13,4 +13,4 @@ RUN R -e "renv::restore(lockfile = 'renv.lock', prompt = FALSE)"
 
 COPY . .
 
-CMD ["R"]
+CMD ["/init"]
