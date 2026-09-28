@@ -1,0 +1,7 @@
+body { min-width: 320px; }
+.navbar-brand { font-weight: 600; }
+.shiny-text-output { white-space: pre-wrap; }
+pre { max-height: 58vh; overflow: auto; background: #f7f7f7; padding: .75rem; border-radius: .35rem; }
+.sidebar .btn { margin-bottom: .45rem; }
+.card { margin-bottom: 1rem; }
+@media (max-width: 900px) { pre { max-height: 35vh; } }

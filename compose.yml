@@ -1,18 +1,33 @@
 services:
-  rstudio:
+  r-lab:
     build:
       context: .
       args:
-        R_VERSION: "4.5"
+        R_VERSION: "${R_VERSION:-4.5.0}"
+        RLAB_UID: "${RLAB_UID:-1000}"
+        RLAB_GID: "${RLAB_GID:-1000}"
+    init: true
+    restart: unless-stopped
     ports:
-      - "8787:8787"
+      - "${R_LAB_HOST:-127.0.0.1}:${R_LAB_PORT:-3838}:${R_LAB_PORT:-3838}"
     environment:
-      PASSWORD: "r-dev"
+      R_LIBS_USER: /home/ruser/R/library
+      R_LAB_WORKSPACE: /workspace
+      R_LAB_PORT: "${R_LAB_PORT:-3838}"
+      R_LAB_TIMEOUT_SECONDS: "${R_LAB_TIMEOUT_SECONDS:-3600}"
+    working_dir: /workspace
     volumes:
-      - .:/home/rstudio/project
-      - renv-library:/home/rstudio/project/renv/library
-      - renv-cache:/home/rstudio/.cache/R/renv
+      - .:/workspace
+      - r-lab-library:/home/ruser/R/library
+    deploy:
+      resources:
+        limits:
+          cpus: "${R_LAB_CPUS:-2.0}"
+          memory: "${R_LAB_MEMORY:-2g}"
+    mem_limit: "${R_LAB_MEMORY:-2g}"
+    cpus: "${R_LAB_CPUS:-2.0}"
+    security_opt:
+      - no-new-privileges:true
 
 volumes:
-  renv-library:
-  renv-cache:
+  r-lab-library:

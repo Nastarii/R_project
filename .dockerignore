@@ -5,4 +5,8 @@
 .RData
 renv/library
 renv/staging
+data/*
 output/*
+assets/*
+logs/*
+*.Rproj
