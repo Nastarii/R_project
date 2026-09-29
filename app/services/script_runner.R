@@ -10,6 +10,46 @@ list_r_scripts <- function(workspace) {
   files[!grepl("^(app/|renv/|logs/|output/|assets/)", files, ignore.case = TRUE)]
 }
 
+list_log_history <- function(workspace) {
+  root <- file.path(workspace, "logs")
+  empty <- data.frame(tipo = character(), arquivo = character(), caminho = character(), label = character(), tamanho = character(), modificado = character(), stringsAsFactors = FALSE)
+  if (!dir.exists(root)) return(empty)
+  files <- list.files(root, recursive = TRUE, full.names = FALSE)
+  files <- files[!dir.exists(file.path(root, files))]
+  if (!length(files)) return(empty)
+  paths <- file.path(root, files)
+  info <- file.info(paths)
+  kind <- ifelse(grepl("^packages-", basename(files), ignore.case = TRUE), "Pacotes", "Script")
+  modified <- format(info$mtime, "%d/%m/%Y %H:%M:%S")
+  result <- data.frame(tipo = kind, arquivo = basename(files), caminho = file.path("logs", files), label = paste0(modified, " - ", kind, " - ", basename(files)), tamanho = format_bytes_result(paths), modificado = modified, stringsAsFactors = FALSE)
+  result[order(info$mtime, decreasing = TRUE), , drop = FALSE]
+}
+
+log_history_path <- function(workspace, relative) {
+  if (!startsWith(relative, "logs/")) stop("Log inválido.")
+  resolve_workspace_file(workspace, sub("^logs/", "", relative), file.path(workspace, "logs"))
+}
+
+read_log_history <- function(workspace, relative, n = 1200L) {
+  path <- log_history_path(workspace, relative)
+  if (!file.exists(path)) return("Log não encontrado.")
+  lines <- readLines(path, warn = FALSE, encoding = "UTF-8")
+  if (!length(lines)) return("Log vazio.")
+  paste(tail(lines, n), collapse = "\n")
+}
+
+delete_log_file <- function(workspace, relative) {
+  path <- log_history_path(workspace, relative)
+  if (file.exists(path)) isTRUE(file.remove(path)) else FALSE
+}
+
+delete_all_log_files <- function(workspace, keep = character()) {
+  history <- list_log_history(workspace)
+  if (!nrow(history)) return(0L)
+  targets <- setdiff(history$caminho, keep)
+  sum(vapply(targets, function(path) delete_log_file(workspace, path), logical(1)))
+}
+
 new_script_runner <- function(workspace, timeout_seconds = 3600) {
   runner <- new.env(parent = emptyenv())
   runner$workspace <- workspace; runner$timeout_seconds <- timeout_seconds; runner$process <- NULL

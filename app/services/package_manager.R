@@ -1,3 +1,9 @@
+package_names <- function(value) {
+  value <- if (length(value)) paste(value, collapse = " ") else ""
+  values <- unique(trimws(unlist(strsplit(value, "[,;[:space:]]+"))))
+  values[nzchar(values)]
+}
+
 new_package_manager <- function(workspace, timeout_seconds = 3600) {
   manager <- new.env(parent = emptyenv())
   manager$workspace <- workspace
@@ -17,8 +23,8 @@ new_package_manager <- function(workspace, timeout_seconds = 3600) {
 package_manager_start <- function(manager, action, values = character(), query = "") {
   if (!is.null(manager$process) && manager$process$is_alive()) stop("Já existe uma operação de pacotes em execução.")
   valid_names <- function(x) grepl("^[A-Za-z][A-Za-z0-9.]*$", x)
-  values <- unique(trimws(values[nzchar(trimws(values))]))
-  if (action %in% c("install", "remove") && (!length(values) || any(!valid_names(values)))) stop("Informe nomes de pacotes válidos, separados por vírgula.")
+  values <- package_names(values)
+  if (action %in% c("install", "remove") && (!length(values) || any(!valid_names(values)))) stop("Informe nomes de pacotes válidos, separados por vírgula, espaço ou linha.")
   if (action == "search" && !nzchar(trimws(query))) stop("Informe um termo para pesquisar.")
   stamp <- format(Sys.time(), "%Y%m%d-%H%M%S")
   log_file <- file.path(manager$workspace, "logs", paste0("packages-", stamp, ".log"))

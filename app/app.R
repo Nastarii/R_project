@@ -19,11 +19,10 @@ source(file.path(app_dir, "modules", "execution.R"), local = TRUE)
 
 ui <- page_navbar(
   title = "R Lab",
-  theme = bs_theme(version = 5, primary = "#2364aa"),
+  theme = bs_theme(version = 5, primary = "#3569e8", font_scale = .96),
   header = tags$head(tags$link(rel = "stylesheet", type = "text/css", href = "style.css")),
-  nav_panel("Ambiente", environment_ui("environment")),
-  nav_panel("Executar scripts", execution_ui("execution")),
-  footer = tags$small("R Lab local — scripts executam código arbitrário; use somente projetos confiáveis.")
+  nav_panel(tagList(icon("sliders"), " Ambiente"), environment_ui("environment")),
+  nav_panel(tagList(icon("play"), " Executar scripts"), execution_ui("execution"))
 )
 server <- function(input, output, session) {
   environment_server("environment", workspace, timeout_seconds)
