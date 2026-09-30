@@ -51,45 +51,6 @@ script_root_path <- function(workspace, logical, project_root = NULL) {
 }
 
 script_display_path <- function(logical) paste0("/projects/", normalise_logical_path(logical))
-list_log_history <- function(workspace) {
-  root <- file.path(workspace, "logs")
-  empty <- data.frame(tipo = character(), arquivo = character(), caminho = character(), label = character(), tamanho = character(), modificado = character(), stringsAsFactors = FALSE)
-  if (!dir.exists(root)) return(empty)
-  files <- list.files(root, recursive = TRUE, full.names = FALSE)
-  files <- files[!dir.exists(file.path(root, files))]
-  if (!length(files)) return(empty)
-  paths <- file.path(root, files); info <- file.info(paths)
-  kind <- ifelse(grepl("^packages-", basename(files), ignore.case = TRUE), "Pacotes", "Script")
-  modified <- format(info$mtime, "%d/%m/%Y %H:%M:%S")
-  result <- data.frame(tipo = kind, arquivo = basename(files), caminho = file.path("logs", files), label = paste0(modified, " - ", kind, " - ", basename(files)), tamanho = format_bytes_result(paths), modificado = modified, stringsAsFactors = FALSE)
-  result[order(info$mtime, decreasing = TRUE), , drop = FALSE]
-}
-
-log_history_path <- function(workspace, relative) {
-  if (!startsWith(relative, "logs/")) stop("Log invalido.")
-  resolve_workspace_file(workspace, sub("^logs/", "", relative), file.path(workspace, "logs"))
-}
-
-read_log_history <- function(workspace, relative, n = 1200L) {
-  path <- log_history_path(workspace, relative)
-  if (!file.exists(path)) return("Log nao encontrado.")
-  lines <- readLines(path, warn = FALSE, encoding = "UTF-8")
-  if (!length(lines)) return("Log vazio.")
-  paste(tail(lines, n), collapse = "\n")
-}
-
-delete_log_file <- function(workspace, relative) {
-  path <- log_history_path(workspace, relative)
-  if (file.exists(path)) isTRUE(file.remove(path)) else FALSE
-}
-
-delete_all_log_files <- function(workspace, keep = character()) {
-  history <- list_log_history(workspace)
-  if (!nrow(history)) return(0L)
-  targets <- setdiff(history$caminho, keep)
-  sum(vapply(targets, function(path) delete_log_file(workspace, path), logical(1)))
-}
-
 new_script_runner <- function(workspace, timeout_seconds = 3600, project_root = NULL) {
   runner <- new.env(parent = emptyenv())
   runner$workspace <- workspace
@@ -100,8 +61,8 @@ new_script_runner <- function(workspace, timeout_seconds = 3600, project_root = 
   runner$started_at <- NULL
   runner$finished_at <- NULL
   runner$status <- "Pronto"
-  runner$exit_status <- NULL
-  runner$log_file <- NULL
+runner$exit_status <- NULL
+  runner$log_lines <- character()
   class(runner) <- "r_lab_script_runner"
   runner
 }
@@ -111,10 +72,10 @@ script_runner_active <- function(runner) {
 }
 
 append_runner_summary <- function(runner) {
-  if (is.null(runner$log_file) || is.null(runner$finished_at)) return(invisible(NULL))
+  if (is.null(runner$finished_at)) return(invisible(NULL))
   elapsed <- if (is.null(runner$started_at)) "-" else paste0(round(as.numeric(difftime(runner$finished_at, runner$started_at, units = "secs")), 1), " s")
   code <- if (is.null(runner$exit_status)) "-" else as.character(runner$exit_status)
-  writeLines(c(paste0("[R LAB] Status: ", runner$status), paste0("[R LAB] Codigo: ", code), paste0("[R LAB] Duracao: ", elapsed), paste0("[R LAB] Fim: ", format(runner$finished_at))), runner$log_file, sep = "\n", useBytes = TRUE)
+  runner$log_lines <- c(runner$log_lines, paste0("[R LAB] Status: ", runner$status), paste0("[R LAB] Codigo: ", code), paste0("[R LAB] Duracao: ", elapsed), paste0("[R LAB] Fim: ", format(runner$finished_at)))
   invisible(NULL)
 }
 
@@ -125,16 +86,11 @@ script_runner_start <- function(runner, relative_script) {
   if (!relative_script %in% scripts) stop("Script invalido ou inexistente.")
   script_path <- script_root_path(runner$workspace, relative_script, runner$project_root)
   if (!file.exists(script_path)) stop("O arquivo selecionado nao esta disponivel.")
-  stamp <- gsub("[^0-9-]", "", format(Sys.time(), "%Y%m%d-%H%M%S-%OS3"))
-  safe_name <- gsub("[^A-Za-z0-9_.-]", "_", relative_script)
-  log_file <- file.path(runner$workspace, "logs", paste0(stamp, "-", safe_name, ".log"))
-  dir.create(dirname(log_file), recursive = TRUE, showWarnings = FALSE)
   started <- Sys.time()
-  writeLines(c(paste0("Script: ", relative_script), paste0("Inicio: ", format(started)), paste0("Diretorio de trabalho: ", runner$workspace), "---"), log_file)
   runner$process <- processx::process$new("Rscript", c("--vanilla", script_path), wd = runner$project_root, stdout = "|", stderr = "|", cleanup = TRUE)
   runner$script <- relative_script
   runner$project_root <- runner$project_root
-  runner$log_file <- log_file
+  runner$log_lines <- c(paste0("Script: ", relative_script), paste0("Inicio: ", format(started)), paste0("Diretorio de trabalho: ", runner$workspace), "---")
   runner$started_at <- started
   runner$finished_at <- NULL
   runner$exit_status <- NULL
@@ -145,7 +101,7 @@ script_runner_start <- function(runner, relative_script) {
 script_runner_drain <- function(runner) {
   if (is.null(runner$process)) return(invisible(NULL))
   runner$process$poll_io(0)
-  append_lines <- function(lines, prefix = "") if (length(lines)) write(paste0(prefix, lines), file = runner$log_file, append = TRUE)
+  append_lines <- function(lines, prefix = "") if (length(lines)) runner$log_lines <- c(runner$log_lines, paste0(prefix, lines))
   append_lines(runner$process$read_output_lines())
   append_lines(runner$process$read_error_lines(), "[stderr] ")
   invisible(NULL)
@@ -186,8 +142,8 @@ script_runner_stop <- function(runner) {
 }
 
 script_runner_log <- function(runner, n = 800L) {
-  if (is.null(runner$log_file) || !file.exists(runner$log_file)) return("Nenhuma execucao iniciada.")
-  lines <- readLines(runner$log_file, warn = FALSE, encoding = "UTF-8")
+  lines <- runner$log_lines
+  if (!length(lines)) return("Nenhuma execucao iniciada.")
   if (!length(lines)) return("Aguardando saida...")
   paste(tail(lines, n), collapse = "\n")
 }

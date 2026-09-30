@@ -9,7 +9,6 @@ workspace <- normalizePath(Sys.getenv("R_LAB_WORKSPACE", unset = file.path(app_d
 timeout_seconds <- suppressWarnings(as.numeric(Sys.getenv("R_LAB_TIMEOUT_SECONDS", "3600")))
 project_root <- Sys.getenv("R_LAB_PROJECT_ROOT", "/projects")
 if (!is.finite(timeout_seconds) || timeout_seconds <= 0) timeout_seconds <- 3600
-dir.create(file.path(workspace, "logs"), recursive = TRUE, showWarnings = FALSE)
 dir.create(file.path(workspace, "output"), recursive = TRUE, showWarnings = FALSE)
 dir.create(file.path(workspace, "assets"), recursive = TRUE, showWarnings = FALSE)
 source(file.path(app_dir, "services", "script_runner.R"), local = TRUE)

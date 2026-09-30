@@ -68,7 +68,7 @@ environment_server <- function(id, workspace, timeout_seconds, project_root = NU
     manager <- new_package_manager(workspace, timeout_seconds, project_root)
     revision <- shiny::reactiveVal(0L)
     bump_revision <- function() revision(shiny::isolate(revision()) + 1L)
-    package_active <- function() !is.null(manager$process) && identical(manager$status, "Executando") && manager$process$is_alive()
+    package_active <- function() !is.null(manager$process) && identical(manager$status, "Executando")
     output$r_version <- shiny::renderText(sub("^R version ", "", R.version.string))
     output$shiny_version <- shiny::renderText(as.character(utils::packageVersion("shiny")))
     output$package_count <- shiny::renderText({ revision(); nrow(installed_packages_table()) })

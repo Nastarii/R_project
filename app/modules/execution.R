@@ -26,11 +26,9 @@ execution_ui <- function(id) {
       shiny::conditionalPanel(sprintf("input['%s'] !== ''", ns("script_selected")),
         shiny::uiOutput(ns("selected_script_header")),
         shiny::div(class = "content-switcher detail-switcher",
-          shiny::div(class = "detail-tabs", detail_button("overview", "chart-line", "Visao geral", TRUE), detail_button("logs", "terminal", "Logs"), detail_button("history", "clock-rotate-left", "Historico"), detail_button("results", "file-lines", "Resultados")),
-          shiny::radioButtons(ns("execution_view"), NULL, choices = c("Visao geral" = "overview", "Logs" = "logs", "Historico" = "history", "Resultados" = "results"), selected = "overview", width = "1px"),
-          shiny::conditionalPanel(sprintf("input['%s'] === 'overview'", ns("execution_view")), shiny::uiOutput(ns("overview_panel"))),
+          shiny::div(class = "detail-tabs", detail_button("logs", "terminal", "Logs", TRUE), detail_button("results", "file-lines", "Resultados")),
+          shiny::radioButtons(ns("execution_view"), NULL, choices = c("Logs" = "logs", "Resultados" = "results"), selected = "logs", width = "1px"),
           shiny::conditionalPanel(sprintf("input['%s'] === 'logs'", ns("execution_view")), log_card),
-          shiny::conditionalPanel(sprintf("input['%s'] === 'history'", ns("execution_view")), shiny::uiOutput(ns("history_panel"))),
           shiny::conditionalPanel(sprintf("input['%s'] === 'results'", ns("execution_view")), results_card)
         )
       )
@@ -44,10 +42,7 @@ execution_server <- function(id, workspace, timeout_seconds, project_root = NULL
     runner <- new_script_runner(workspace, timeout_seconds, project_root)
     results_revision <- shiny::reactiveVal(0L)
     log_revision <- shiny::reactiveVal(0L)
-    history_revision <- shiny::reactiveVal(0L)
     script_revision <- shiny::reactiveVal(0L)
-    log_signature <- shiny::reactiveVal("")
-    selected_log <- shiny::reactiveVal(character())
     selected_script <- shiny::reactiveVal(character())
     current_folder <- shiny::reactiveVal("")
     log_cleared <- shiny::reactiveVal(FALSE)
@@ -61,36 +56,12 @@ execution_server <- function(id, workspace, timeout_seconds, project_root = NULL
     }
     status_class <- function(status) status_key(status)
     status_label <- function(status) if (identical(status, "Pronto")) "Parado" else status
-    empty_history <- function() data.frame(tipo = character(), arquivo = character(), caminho = character(), label = character(), tamanho = character(), modificado = character(), stringsAsFactors = FALSE)
-
-    history_for <- function(script = selected_script()) {
-      history <- list_log_history(workspace)
-      if (!length(script) || !nrow(history)) return(empty_history())
-      safe <- gsub("[^A-Za-z0-9_.-]", "_", script)
-      history[history$tipo == "Script" & grepl(paste0("-", safe, "\\.log$"), history$arquivo), , drop = FALSE]
-    }
-    log_metadata <- function(relative) {
-      if (!shiny::isTruthy(relative)) return(list(status = "Concluido", code = "-", duration = "-"))
-      lines <- tryCatch(readLines(log_history_path(workspace, relative), warn = FALSE, encoding = "UTF-8"), error = function(e) character())
-      status_line <- lines[grepl("^\\[R LAB\\] Status:", lines)]
-      code_line <- lines[grepl("^\\[R LAB\\] Codigo:", lines)]
-      duration_line <- lines[grepl("^\\[R LAB\\] Duracao:", lines)]
-      list(
-        status = if (length(status_line)) sub("^\\[R LAB\\] Status:\\s*", "", tail(status_line, 1)) else "Concluido",
-        code = if (length(code_line)) sub("^\\[R LAB\\] Codigo:\\s*", "", tail(code_line, 1)) else "-",
-        duration = if (length(duration_line)) sub("^\\[R LAB\\] Duracao:\\s*", "", tail(duration_line, 1)) else "-"
-      )
-    }
     summary_for <- function(script) {
       running <- script_active() && identical(runner$script, script)
-      history <- history_for(script)
-      if (running) {
-        elapsed <- round(as.numeric(difftime(Sys.time(), runner$started_at, units = "secs")), 1)
-        return(list(status = "Executando", last = format(runner$started_at, "%d/%m/%Y %H:%M"), duration = paste0(elapsed, " s"), code = "-", sort_time = runner$started_at))
-      }
-      if (!nrow(history)) return(list(status = "Parado", last = "Nunca executado", duration = "-", code = "-", sort_time = as.POSIXct(0, origin = "1970-01-01")))
-      meta <- log_metadata(history$caminho[[1]])
-      list(status = status_label(meta$status), last = history$modificado[[1]], duration = meta$duration, code = meta$code, sort_time = as.POSIXct(history$modificado[[1]], format = "%d/%m/%Y %H:%M:%S"))
+      same_script <- !is.null(runner$started_at) && identical(runner$script, script)
+      if (!same_script) return(list(status = "Parado", last = "Nunca executado", duration = "-", code = "-", sort_time = as.POSIXct(0, origin = "1970-01-01")))
+      elapsed <- if (is.null(runner$finished_at)) as.numeric(difftime(Sys.time(), runner$started_at, units = "secs")) else as.numeric(difftime(runner$finished_at, runner$started_at, units = "secs"))
+      list(status = if (running) "Executando" else status_label(runner$status), last = format(runner$started_at, "%d/%m/%Y %H:%M"), duration = paste0(round(elapsed, 1), " s"), code = if (is.null(runner$exit_status)) "-" else as.character(runner$exit_status), sort_time = runner$started_at)
     }
     refresh_results <- function() {
       artifacts <- list_artifacts(workspace)
@@ -103,16 +74,6 @@ execution_server <- function(id, workspace, timeout_seconds, project_root = NULL
       shiny::updateSelectInput(session, "table", choices = stats::setNames(tv, tables$arquivo), selected = if (shiny::isTruthy(st) && st %in% tv) st else if (length(tv)) tv[[1]] else character())
       shiny::updateSelectInput(session, "asset", choices = stats::setNames(av, assets$arquivo), selected = if (shiny::isTruthy(sa) && sa %in% av) sa else if (length(av)) av[[1]] else character())
       bump(results_revision)
-    }
-    current_log_relative <- function() if (is.null(runner$log_file)) character() else file.path("logs", basename(runner$log_file))
-    refresh_history <- function() {
-      history <- history_for()
-      signature <- paste(history$caminho, history$modificado, collapse = "|")
-      if (!identical(signature, shiny::isolate(log_signature()))) {
-        log_signature(signature)
-        bump(history_revision)
-        bump(log_revision)
-      }
     }
     selected_summary <- function() if (length(selected_script())) summary_for(selected_script()) else NULL
 
@@ -193,42 +154,11 @@ execution_server <- function(id, workspace, timeout_seconds, project_root = NULL
       shiny::div(class = "selected-script-context", shiny::actionButton(ns("script_back"), "Voltar para scripts", icon = shiny::icon("arrow-left"), class = "breadcrumb-back"), shiny::span(class = "context-divider"), shiny::span(class = "context-label", script_display_path(script)), shiny::span(class = paste("status-badge", "large", status_class(summary$status)), shiny::span(class = "status-dot"), summary$status), shiny::div(class = "selected-script-buttons", run_button, shiny::actionButton(ns("refresh_selected"), NULL, icon = shiny::icon("refresh"), class = "btn-ghost", title = "Atualizar dados")))
     })
 
-    output$overview_panel <- shiny::renderUI({
-      script <- selected_script()
-      shiny::req(length(script))
-      summary <- selected_summary()
-      history <- history_for(script)
-      artifacts <- list_artifacts(workspace)
-      shiny::div(class = "overview-panel",
-        shiny::div(class = "overview-grid", shiny::div(class = "overview-stat", shiny::span("Status atual"), shiny::strong(summary$status), shiny::tags$small("estado do processo")), shiny::div(class = "overview-stat", shiny::span("Ultima execucao"), shiny::strong(summary$last), shiny::tags$small("data e hora")), shiny::div(class = "overview-stat", shiny::span("Duracao"), shiny::strong(summary$duration), shiny::tags$small("tempo registrado")), shiny::div(class = "overview-stat", shiny::span("Execucoes"), shiny::strong(nrow(history)), shiny::tags$small("no historico"))),
-        shiny::div(class = "overview-columns",
-          bslib::card(class = "content-card overview-card", bslib::card_header(shiny::div(class = "card-heading", shiny::span(shiny::tagList(shiny::icon("circle-info"), "Sobre este script")))), shiny::div(class = "overview-detail-row", shiny::span("Caminho"), shiny::strong(script_display_path(script))), shiny::div(class = "overview-detail-row", shiny::span("Codigo de saida"), shiny::strong(summary$code)), shiny::div(class = "overview-detail-row", shiny::span("Resultados disponiveis"), shiny::strong(nrow(artifacts)))),
-          bslib::card(class = "content-card overview-card overview-note", shiny::div(class = "empty-icon", shiny::icon("shield-halved")), shiny::strong("Execucao isolada"), shiny::p("O script e executado em um processo R independente e o workspace continua disponivel para navegacao."))
-        )
-      )
-    })
-
-    output$history_panel <- shiny::renderUI({
-      history_revision()
-      script <- selected_script()
-      shiny::req(length(script))
-      history <- history_for(script)
-      if (!nrow(history)) return(shiny::div(class = "empty-state", shiny::div(class = "empty-icon", shiny::icon("clock")), shiny::strong("Nenhuma execucao registrada"), shiny::span("Quando este script for executado, o historico aparecera aqui.")))
-      rows <- lapply(seq_len(nrow(history)), function(index) {
-        path <- history$caminho[[index]]
-        meta <- log_metadata(path)
-        request <- jsonlite::toJSON(path, auto_unbox = TRUE)
-        shiny::tags$button(type = "button", class = "history-row", onclick = sprintf("Shiny.setInputValue('%s',%s,{priority:'event'});", ns("log_request"), request), shiny::span(class = "history-status", shiny::span(class = paste("status-badge", status_class(meta$status)), meta$status)), shiny::span(class = "history-date", history$modificado[[index]]), shiny::span(class = "history-duration", meta$duration), shiny::span(class = "history-code", paste("codigo", meta$code)), shiny::icon("chevron-right"))
-      })
-      shiny::div(class = "history-panel", shiny::div(class = "history-panel-heading", shiny::div(shiny::strong("Execucoes anteriores"), shiny::span("Selecione uma execucao para abrir seus logs")), shiny::actionButton(ns("refresh_history_list"), NULL, icon = shiny::icon("refresh"), class = "icon-button", title = "Atualizar historico")), shiny::div(class = "history-list", rows))
-    })
-
     output$log_terminal <- shiny::renderUI({
       log_revision()
       if (script_active()) shiny::invalidateLater(1000, session)
       if (log_cleared()) return(shiny::div(class = "terminal-output terminal-empty", "Visualizacao limpa. Atualize para carregar os logs novamente."))
-      selected <- selected_log()
-      content <- if (shiny::isTruthy(selected) && file.exists(log_history_path(workspace, selected))) read_log_history(workspace, selected) else script_runner_log(runner)
+      content <- script_runner_log(runner)
       lines <- strsplit(content, "\n", fixed = TRUE)[[1]]
       shiny::div(class = "terminal-output", lapply(lines, function(line) {
         level <- if (grepl("stderr|error|erro|falhou", line, ignore.case = TRUE)) "error" else if (grepl("warning|aviso", line, ignore.case = TRUE)) "warning" else if (grepl("Status: Concluido|conclu", line, ignore.case = TRUE)) "success" else "info"
@@ -261,50 +191,38 @@ execution_server <- function(id, workspace, timeout_seconds, project_root = NULL
         script_runner_tick(runner)
         bump(log_revision)
         bump(script_revision)
-        if (!identical(old_status, runner$status)) {
-          refresh_results()
-          refresh_history()
-        }
+        if (!identical(old_status, runner$status)) refresh_results()
       }
-      refresh_history()
     })
     shiny::observeEvent(input$refresh_scripts, { bump(script_revision) })
     shiny::observeEvent(input$folder_select, { current_folder(input$folder_select); bump(script_revision) }, ignoreNULL = TRUE)
     shiny::observeEvent(input$refresh_results, { refresh_results() })
     shiny::observeEvent(input$refresh_logs, { log_cleared(FALSE); bump(log_revision) })
     shiny::observeEvent(input$clear_log_view, { log_cleared(TRUE); bump(log_revision) })
-    shiny::observeEvent(input$refresh_selected, { bump(script_revision); refresh_results(); refresh_history() })
-    shiny::observeEvent(input$refresh_history_list, { bump(history_revision); refresh_history() })
+    shiny::observeEvent(input$refresh_selected, { bump(script_revision); refresh_results() })
     shiny::observeEvent(input$script_select, {
       selected_script(input$script_select)
       shiny::updateTextInput(session, "script_selected", value = input$script_select)
-      shiny::updateRadioButtons(session, "execution_view", selected = "overview")
-      hist <- history_for(input$script_select)
-      selected_log(if (nrow(hist)) hist$caminho[[1]] else character())
+      shiny::updateRadioButtons(session, "execution_view", selected = "logs")
       log_cleared(FALSE)
       bump(log_revision)
-      bump(history_revision)
     }, ignoreNULL = TRUE)
     shiny::observeEvent(input$script_back, { selected_script(character()); shiny::updateTextInput(session, "script_selected", value = ""); bump(script_revision) })
-    shiny::observeEvent(input$log_request, { selected_log(input$log_request); log_cleared(FALSE); bump(log_revision) }, ignoreNULL = TRUE)
     shiny::observeEvent(input$run_request, {
       script <- input$run_request
       tryCatch({
         script_runner_start(runner, script)
         selected_script(script)
         shiny::updateTextInput(session, "script_selected", value = script)
-        selected_log(current_log_relative())
         log_cleared(FALSE)
       }, error = function(e) shiny::showNotification(conditionMessage(e), type = "error"))
       bump(script_revision)
       bump(log_revision)
-      bump(history_revision)
     }, ignoreNULL = TRUE)
     shiny::observeEvent(input$stop_request, {
       if (!is.null(runner$process) && identical(input$stop_request, runner$script) && identical(runner$status, "Executando")) script_runner_stop(runner)
       bump(script_revision)
       bump(log_revision)
-      refresh_history()
     }, ignoreNULL = TRUE)
   })
 }

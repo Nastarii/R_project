@@ -17,11 +17,16 @@ tryCatch({
     query <- if (length(args) >= 2) args[[2]] else ""
     result_file <- args[[3]]
     log_message("Pesquisando no CRAN...")
-    index <- as.data.frame(utils::available.packages(repos = repos), stringsAsFactors = FALSE)
+    index <- as.data.frame(utils::available.packages(repos = repos, filters = "duplicates"), stringsAsFactors = FALSE)
     if (nzchar(query)) {
-      needle <- tolower(query)
-      haystack <- paste(index$Package, index$Title, index$Description)
-      index <- index[grepl(needle, tolower(haystack), fixed = TRUE), , drop = FALSE]
+      needle <- trimws(query)
+      searchable <- intersect(c("Package", "Title", "Description"), names(index))
+      matches <- Reduce(`|`, lapply(searchable, function(column) {
+        values <- index[[column]]
+        values[is.na(values)] <- ""
+        grepl(tolower(needle), tolower(values), fixed = TRUE)
+      }))
+      index <- index[matches, , drop = FALSE]
     }
     index <- head(index[, intersect(c("Package", "Version", "Title"), names(index)), drop = FALSE], 100)
     saveRDS(index, result_file)

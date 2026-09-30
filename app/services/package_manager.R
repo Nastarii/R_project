@@ -67,7 +67,7 @@ new_package_manager <- function(workspace, timeout_seconds = 3600, project_root 
   manager$finished_at <- NULL
   manager$status <- "Pronto"
   manager$exit_status <- NULL
-  manager$log_file <- NULL
+  manager$log_lines <- character()
   manager$result_file <- NULL
   manager$sync_packages <- character()
   class(manager) <- "r_lab_package_manager"
@@ -81,17 +81,11 @@ package_manager_start <- function(manager, action, values = character(), query =
   if (identical(action, "sync")) values <- unique(project_package_names(manager$workspace, manager$project_root))
   if (action %in% c("install", "remove", "sync") && (!length(values) || any(!valid_names(values)))) stop("Nenhum pacote valido foi encontrado para esta operacao.")
   if (identical(action, "search") && !nzchar(trimws(query))) stop("Informe um termo para pesquisar.")
-  log_file <- NULL
-  if (!identical(action, "search")) {
-    stamp <- gsub("[^0-9-]", "", format(Sys.time(), "%Y%m%d-%H%M%S-%OS3"))
-    log_file <- file.path(manager$workspace, "logs", paste0("packages-", stamp, ".log"))
-    dir.create(dirname(log_file), recursive = TRUE, showWarnings = FALSE)
-  }
   result_file <- if (identical(action, "search")) tempfile("r-lab-cran-", fileext = ".rds") else NULL
   args <- c("--vanilla", manager$worker, action)
   if (identical(action, "search")) args <- c(args, query, result_file)
   if (action %in% c("install", "remove", "sync")) args <- c(args, values)
-  manager$log_file <- log_file
+  manager$log_lines <- character()
   manager$result_file <- result_file
   manager$sync_packages <- if (identical(action, "sync")) values else character()
   manager$action <- action
@@ -107,7 +101,7 @@ package_manager_drain <- function(manager) {
   if (is.null(manager$process)) return(invisible(NULL))
   manager$process$poll_io(0)
   write_lines <- function(lines, prefix = "") {
-    if (length(lines) && !is.null(manager$log_file)) write(paste0(prefix, lines), file = manager$log_file, append = TRUE)
+    if (length(lines)) manager$log_lines <- c(manager$log_lines, paste0(prefix, lines))
   }
   write_lines(manager$process$read_output_lines())
   write_lines(manager$process$read_error_lines(), "[stderr] ")
@@ -134,8 +128,8 @@ package_manager_tick <- function(manager) {
 }
 
 package_manager_log <- function(manager, n = 500L) {
-  if (is.null(manager$log_file) || !file.exists(manager$log_file)) return("Nenhuma operacao iniciada.")
-  lines <- readLines(manager$log_file, warn = FALSE, encoding = "UTF-8")
+  lines <- manager$log_lines
+  if (!length(lines)) return("Nenhuma operacao iniciada.")
   if (!length(lines)) return("Aguardando saida...")
   paste(tail(lines, n), collapse = "\n")
 }
