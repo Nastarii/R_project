@@ -641,3 +641,86 @@ body, .app-main { background: var(--rlab-bg); color: var(--rlab-ink); }
   .selected-script-context .selected-script-buttons { width: 100%; }
 }
 
+
+/* Package controls and action buttons */
+.package-actions-card { width: 100%; max-width: none !important; }
+.package-actions-card .card-body { width: 100%; }
+.package-actions-body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 18px; width: 100%; max-width: none; padding: 18px 20px 6px; }
+.package-actions-body > .field-block,
+.package-actions-body > .package-field,
+.package-actions-body > .button-stack { min-width: 0; margin: 0; }
+.package-actions-body > .field-block:first-child { grid-column: 1; }
+.package-actions-body > .package-field { grid-column: 2; }
+.package-actions-body > .button-stack { grid-column: 1; grid-row: 2; align-self: end; max-width: none; }
+.package-actions-body > .remove-block { grid-column: 2; grid-row: 2; align-self: end; }
+.package-actions-body .form-group { margin: 0 0 6px; }
+.package-actions-body .control-label { display: block; min-height: 17px; margin-bottom: 5px; color: #536174; font-size: 10px; font-weight: 750; }
+.package-actions-body .form-control,
+.package-actions-body .selectize-input { width: 100%; min-height: 36px; border-color: #dfe5ed; border-radius: 7px; background: #fff; box-shadow: none; color: var(--rlab-ink); font-size: 11px; }
+.package-actions-body textarea.form-control { min-height: 76px; resize: vertical; }
+.package-actions-body .form-control:focus,
+.package-actions-body .selectize-input.focus { border-color: #7c9eeb; box-shadow: 0 0 0 3px rgba(47,111,237,.1); }
+.package-actions-body .form-text { min-height: 15px; margin: 4px 0 0; color: #919cab; font-size: 10px; }
+.package-actions-body .shiny-text-output { color: #7b8797; font-size: 10px; }
+.package-actions-body .button-stack { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.package-actions-body .btn,
+.selected-script-context .btn,
+.selected-script-buttons .btn { display: inline-flex; min-height: 34px; align-items: center; justify-content: center; gap: 7px; padding: 7px 12px; border-radius: 7px; box-shadow: none; font-size: 10px; font-weight: 750; line-height: 1.15; white-space: nowrap; }
+.package-actions-body .field-block > .btn,
+.package-actions-body .remove-block > .btn { width: 100%; }
+.package-actions-body .btn-primary,
+.selected-script-context .btn-primary { border-color: #3b6fe3; color: #fff; background: #3569e8; }
+.package-actions-body .btn-primary:hover,
+.selected-script-context .btn-primary:hover { border-color: #285bcf; color: #fff; background: #285bcf; }
+.package-actions-body .btn-ghost,
+.selected-script-context .btn-ghost { border: 1px solid #dfe5ed; color: #5e6c80; background: #f8fafc; }
+.package-actions-body .btn-ghost:hover,
+.selected-script-context .btn-ghost:hover { border-color: #c9d7ee; color: #315fae; background: #f0f5ff; }
+.package-actions-body .btn-outline-danger { border-color: #ebcbd1; color: #b3495a; background: #fff8f9; }
+.package-actions-body .btn-outline-danger:hover { color: #a6384b; background: #fff0f2; }
+.package-status { grid-column: 1 / -1; margin: 0 20px 18px; }
+.script-quick-action { display: inline-grid; width: 30px; height: 30px; min-height: 30px; place-items: center; padding: 0; border-radius: 7px; box-shadow: none; }
+.script-quick-action .fa { margin: 0; font-size: 10px; }
+@media (max-width: 760px) {
+  .package-actions-body { grid-template-columns: 1fr; gap: 12px; padding-inline: 15px; }
+  .package-actions-body > .field-block:first-child,
+  .package-actions-body > .package-field,
+  .package-actions-body > .button-stack,
+  .package-actions-body > .remove-block { grid-column: 1; grid-row: auto; }
+  .package-actions-body > .button-stack { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .package-status { margin-inline: 15px; }
+}
+
+
+/* Package card alignment fix */
+.package-actions-card { display: block !important; width: 100%; max-width: none !important; grid-template-columns: none !important; }
+.package-actions-card .card-body { width: 100%; }
+.package-actions-body { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; gap: 16px 20px; width: 100%; max-width: none; box-sizing: border-box; padding: 18px 20px 6px; }
+.package-actions-body > .field-block,
+.package-actions-body > .package-field,
+.package-actions-body > .button-stack { min-width: 0; width: 100%; margin: 0; }
+.package-actions-body > .field-block:first-child { display: flex; flex-direction: column; grid-column: 1; }
+.package-actions-body > .field-block:first-child > .btn { margin-top: auto; }
+.package-actions-body > .package-field { grid-column: 2; }
+.package-actions-body > .button-stack { grid-column: 1; grid-row: 2; align-self: end; max-width: none; }
+.package-actions-body > .remove-block { grid-column: 2; grid-row: 2; align-self: end; }
+.package-actions-body > .field-block,
+.package-actions-body > .package-field,
+.package-actions-body > .remove-block,
+.package-actions-body .shiny-input-container,
+.package-actions-body .form-group { box-sizing: border-box; min-width: 0; width: 100% !important; }
+.package-actions-body .form-group { margin: 0 0 7px; }
+.package-actions-body .control-label { display: block; min-height: 18px; margin: 0 0 6px; color: #536174; font-size: 10px; font-weight: 750; line-height: 1.2; }
+.package-actions-body .form-control,
+.package-actions-body .selectize-input { width: 100%; min-height: 36px; border-color: #dfe5ed; border-radius: 7px; background: #fff; box-shadow: none; color: var(--rlab-ink); font-size: 11px; }
+.package-actions-body textarea.form-control { min-height: 76px; resize: vertical; line-height: 1.35; }
+.package-actions-body .button-stack { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: end; gap: 8px; }
+@media (max-width: 760px) {
+  .package-actions-card { display: block !important; }
+  .package-actions-body { grid-template-columns: 1fr; gap: 12px; padding-inline: 15px; }
+  .package-actions-body > .field-block:first-child,
+  .package-actions-body > .package-field,
+  .package-actions-body > .button-stack,
+  .package-actions-body > .remove-block { grid-column: 1; grid-row: auto; }
+  .package-actions-body > .button-stack { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
