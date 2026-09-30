@@ -7,6 +7,7 @@ app_file <- tryCatch(sys.frame(1)$ofile, error = function(e) NULL)
 app_dir <- if (!is.null(app_file)) dirname(normalizePath(app_file, winslash = "/")) else if (file.exists(file.path("services", "script_runner.R"))) normalizePath(".", winslash = "/", mustWork = TRUE) else normalizePath("app", winslash = "/", mustWork = TRUE)
 workspace <- normalizePath(Sys.getenv("R_LAB_WORKSPACE", unset = file.path(app_dir, "..")), winslash = "/", mustWork = TRUE)
 timeout_seconds <- suppressWarnings(as.numeric(Sys.getenv("R_LAB_TIMEOUT_SECONDS", "3600")))
+project_root <- Sys.getenv("R_LAB_PROJECT_ROOT", "/projects")
 if (!is.finite(timeout_seconds) || timeout_seconds <= 0) timeout_seconds <- 3600
 dir.create(file.path(workspace, "logs"), recursive = TRUE, showWarnings = FALSE)
 dir.create(file.path(workspace, "output"), recursive = TRUE, showWarnings = FALSE)
@@ -19,7 +20,7 @@ source(file.path(app_dir, "modules", "execution.R"), local = TRUE)
 
 ui <- shiny::tagList(
   tags$head(
-    tags$link(rel = "stylesheet", type = "text/css", href = "style.css"),
+    tags$link(rel = "stylesheet", type = "text/css", href = "style.css?v=20260930-2"),
     tags$meta(name = "viewport", content = "width=device-width, initial-scale=1")
   ),
   shiny::div(
@@ -37,7 +38,7 @@ ui <- shiny::tagList(
         shiny::icon("terminal"), shiny::span("Scripts"), shiny::span(class = "app-nav-chevron", shiny::icon("chevron-right"))
       ),
       shiny::div(class = "app-sidebar-spacer"),
-      shiny::div(class = "app-sidebar-footer", shiny::div(class = "workspace-badge", shiny::icon("folder-open"), shiny::div(shiny::strong("Workspace"), shiny::span("/workspace"))), shiny::span(class = "app-version", "R Lab - local")),
+      shiny::div(class = "app-sidebar-footer", shiny::div(class = "workspace-badge", shiny::icon("folder-open"), shiny::div(shiny::strong("Projetos"), shiny::span("/projects"))), shiny::span(class = "app-version", "R Lab - local")),
       shiny::radioButtons("main_section", NULL, choices = c(environment = "Ambiente", scripts = "Scripts"), selected = "scripts", inline = FALSE, width = "1px")
     ),
     shiny::div(
@@ -49,7 +50,7 @@ ui <- shiny::tagList(
   )
 )
 server <- function(input, output, session) {
-  environment_server("environment", workspace, timeout_seconds)
-  execution_server("execution", workspace, timeout_seconds)
+  environment_server("environment", workspace, timeout_seconds, project_root)
+  execution_server("execution", workspace, timeout_seconds, project_root)
 }
 shinyApp(ui, server)

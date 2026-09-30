@@ -15,9 +15,11 @@ services:
       R_LAB_WORKSPACE: /workspace
       R_LAB_PORT: "${R_LAB_PORT:-3838}"
       R_LAB_TIMEOUT_SECONDS: "${R_LAB_TIMEOUT_SECONDS:-3600}"
+      R_LAB_PROJECT_ROOT: /projects
     working_dir: /workspace
     volumes:
       - .:/workspace
+      - "${R_LAB_PROJECT_PATH:-./workspace}:/projects"
       - r-lab-library:/home/ruser/R/library
     deploy:
       resources:

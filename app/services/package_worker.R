@@ -26,22 +26,22 @@ tryCatch({
     index <- head(index[, intersect(c("Package", "Version", "Title"), names(index)), drop = FALSE], 100)
     saveRDS(index, result_file)
     log_message("Encontrados ", nrow(index), " pacote(s).")
-  } else if (action == "install") {
+  } else if (action %in% c("install", "sync")) {
     packages <- args[-1]
-    log_message("Instalando: ", paste(packages, collapse = ", "))
+    log_message(if (action == "sync") "Sincronizando pacotes identificados no projeto: " else "Instalando: ", paste(packages, collapse = ", "))
     utils::install.packages(packages, lib = lib, repos = repos, dependencies = TRUE)
-    log_message("Instalação concluída.")
+    log_message(if (action == "sync") "Sincronizacao concluida." else "Instalacao concluida.")
   } else if (action == "update") {
     log_message("Atualizando pacotes da biblioteca do projeto...")
     utils::update.packages(lib.loc = lib, ask = FALSE, checkBuilt = TRUE, repos = repos)
-    log_message("Atualização concluída.")
+    log_message("Atualizacao concluida.")
   } else if (action == "remove") {
     packages <- args[-1]
     log_message("Removendo: ", paste(packages, collapse = ", "))
     utils::remove.packages(packages, lib = lib)
-    log_message("Remoção concluída.")
+    log_message("Remocao concluida.")
   } else {
-    stop("Ação desconhecida: ", action)
+    stop("Acao desconhecida: ", action)
   }
 }, error = function(error) {
   log_message("ERRO: ", conditionMessage(error))

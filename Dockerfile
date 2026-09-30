@@ -22,9 +22,9 @@ RUN apt-get update \
     && mkdir -p /home/ruser/R/library /workspace \
     && chown -R ruser:ruser /home/ruser /workspace
 
-# Dependências permanentes da interface; pacotes dos projetos são instalados
-# depois, pelo usuário, na biblioteca persistente montada pelo Compose.
-RUN install2.r --error --skipinstalled shiny bslib DT processx \
+# DependÃƒÂªncias permanentes da interface; pacotes dos projetos sÃƒÂ£o instalados
+# depois, pelo usuÃƒÂ¡rio, na biblioteca persistente montada pelo Compose.
+RUN install2.r --error --skipinstalled shiny bslib DT processx jsonlite \
     && rm -rf /tmp/downloaded_packages /tmp/Rtmp*
 
 COPY app /workspace/app
